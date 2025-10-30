@@ -1494,15 +1494,23 @@ const docTemplate = `{
                 }
             }
         }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Введите JWT токен в формате: Bearer {your_token}",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
-	Host:             "localhost:8080",
-	BasePath:         "/",
-	Schemes:          []string{"https", "http"},
+	Host:             "",
+	BasePath:         "",
+	Schemes:          []string{},
 	Title:            "ASPIRIN",
 	Description:      "Aspirin",
 	InfoInstanceName: "swagger",

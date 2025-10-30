@@ -1,4 +1,3 @@
-basePath: /
 definitions:
   ds.Reaction:
     properties:
@@ -157,7 +156,6 @@ definitions:
         example: admin
         type: string
     type: object
-host: localhost:8080
 info:
   contact:
     email: address
@@ -961,7 +959,10 @@ paths:
       summary: Register new user
       tags:
       - Users
-schemes:
-- https
-- http
+securityDefinitions:
+  BearerAuth:
+    description: 'Введите JWT токен в формате: Bearer {your_token}'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

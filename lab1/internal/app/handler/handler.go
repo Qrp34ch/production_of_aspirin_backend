@@ -35,6 +35,8 @@ func (h *Handler) RegisterHandler(router *gin.Engine) {
 	authM.Use(h.WithAuthCheck(true))
 	authU := router.Group("")
 	authU.Use(h.WithAuthCheck(false))
+	authU5 := router.Group("")
+	authU5.Use(h.WithAuthCheckLab5(false))
 	//домен услуги (реакции)
 	router.GET("/API/reaction", h.GetReactionsAPI)
 	router.GET("/API/reaction/:id", h.GetReactionAPI)
@@ -45,7 +47,8 @@ func (h *Handler) RegisterHandler(router *gin.Engine) {
 	authM.POST("/API/reaction/:id/image", h.UploadReactionImageAPI)
 
 	//домен заявки (синтез)
-	authU.GET("/API/synthesis/icon", h.GetSynthesisIconAPI)
+	authU5.GET("/API/synthesis/icon", h.GetSynthesisIconAPI)
+	//authU.GET("/API/synthesis/icon", h.GetSynthesisIconAPI)
 	authU.GET("/API/synthesis", h.GetSynthesesAPI)
 	authU.GET("/API/synthesis/:id", h.GetSynthesisAPI)
 	authU.PUT("/API/synthesis/:id", h.UpdateSynthesisPurityAPI)

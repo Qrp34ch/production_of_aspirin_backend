@@ -24,7 +24,10 @@ import (
 // @contact.email address
 
 // @license.name AS IS (NO WARRANTY)
-
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Введите JWT токен в формате: Bearer {your_token}
 // @host localhost:8080
 // @schemes https http
 // @BasePath /
