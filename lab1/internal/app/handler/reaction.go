@@ -590,6 +590,11 @@ func (h *Handler) GetSynthesisAPI(ctx *gin.Context) {
 		h.errorHandler(ctx, http.StatusNotFound, err)
 		return
 	}
+	synthesisReactions, err := h.Repository.GetSynthesisWithCounts(uint(id))
+	if err != nil {
+		h.errorHandler(ctx, http.StatusNotFound, err)
+		return
+	}
 
 	synthesisFull := struct {
 		ID             uint
@@ -639,8 +644,9 @@ func (h *Handler) GetSynthesisAPI(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"status": "success",
-		"data":   synthesisFull,
+		"status":  "success",
+		"data":    synthesisFull,
+		"data_pr": synthesisReactions,
 	})
 }
 
@@ -758,7 +764,7 @@ func (h *Handler) CompleteOrRejectSynthesisAPI(ctx *gin.Context) {
 	}
 
 	var input struct {
-		NewStatus bool `json:"new_status" binding:"required"`
+		NewStatus bool `json:"new_status"`
 	}
 
 	if err := ctx.ShouldBindJSON(&input); err != nil {

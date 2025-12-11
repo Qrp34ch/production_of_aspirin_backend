@@ -134,7 +134,7 @@ func (r *Repository) AddReactionInSynthesis(id uint, userID uint) error {
 			SynthesisID: synthesisID,
 			ReactionID:  id,
 			Count:       1,
-			VolumeSM:    10.0,
+			VolumeSM:    0,
 			VolumeRM:    0,
 		}
 		err = r.db.Create(&newSynthesisReaction).Error

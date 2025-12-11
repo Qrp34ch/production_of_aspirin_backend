@@ -24,8 +24,8 @@ func NewHandler(c *config.Config, r *repository.Repository) *Handler {
 
 func (h *Handler) RegisterHandler(router *gin.Engine) {
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	router.GET("/reaction", h.GetReactions)
-	router.GET("/reaction/:id", h.GetReaction)
+	router.GET("/reaction", h.GetReactionsAPI)
+	router.GET("/reaction/:id", h.GetReactionAPI)
 	router.GET("/synthesis/:id", h.GetSynthesis)
 	router.POST("/add-reaction-in-synthesis", h.AddReactionInSynthesis)
 	router.POST("/delete/:id", h.RemoveSynthesis)
@@ -47,7 +47,7 @@ func (h *Handler) RegisterHandler(router *gin.Engine) {
 	authM.POST("/API/reaction/:id/image", h.UploadReactionImageAPI)
 
 	//домен заявки (синтез)
-	authU5.GET("/API/synthesis/icon", h.GetSynthesisIconAPI)
+	authU.GET("/API/synthesis/icon", h.GetSynthesisIconAPI)
 	//authU.GET("/API/synthesis/icon", h.GetSynthesisIconAPI)
 	authU.GET("/API/synthesis", h.GetSynthesesAPI)
 	authU.GET("/API/synthesis/:id", h.GetSynthesisAPI)
