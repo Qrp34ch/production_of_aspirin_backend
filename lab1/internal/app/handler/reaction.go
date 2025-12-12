@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
@@ -20,6 +21,11 @@ type SuccessResponse struct {
 	Status  string      `json:"status"`
 	Message string      `json:"message,omitempty"`
 	Data    interface{} `json:"data,omitempty"`
+}
+
+type SynthesisReactionResult struct {
+	ReactionID uint    `json:"reaction_id"`
+	VolumeRM   float32 `json:"volume_rm"`
 }
 
 func (h *Handler) GetReactions(ctx *gin.Context) {
@@ -774,6 +780,47 @@ func (h *Handler) CompleteOrRejectSynthesisAPI(ctx *gin.Context) {
 
 	moderatorID := uint(2)
 
+	// Если синтез завершается (а не отклоняется)
+	if input.NewStatus {
+		// Получаем данные для расчёта
+		reactions, err := h.Repository.GetSynthesisDataForCalculation(uint(id))
+		if err != nil {
+			h.errorHandler(ctx, http.StatusInternalServerError, err)
+			return
+		}
+
+		// Формируем данные для отправки в асинхронный сервис
+		calculationData := make([]map[string]interface{}, len(reactions))
+		for i, sr := range reactions {
+			calculationData[i] = map[string]interface{}{
+				"reaction_id":   sr.ReactionID,
+				"purity":        sr.Purity,
+				"volume_sm":     sr.VolumeSM,
+				"density_sm":    sr.DensitySM,
+				"molar_mass_sm": sr.MolarMassSM,
+				"density_rm":    sr.DensityRM,
+				"molar_mass_rm": sr.MolarMassRM,
+				"count":         sr.Count,
+			}
+		}
+
+		// Отправляем запрос в асинхронный сервис в горутине
+		go func(synthesisID int, data []map[string]interface{}) {
+			// Формируем запрос
+			asyncReq := map[string]interface{}{
+				"synthesis_id": synthesisID,
+				"data":         data,
+			}
+
+			jsonData, _ := json.Marshal(asyncReq)
+			http.Post("http://localhost:8001/calculate/",
+				"application/json",
+				bytes.NewBuffer(jsonData))
+			// Игнорируем ошибки, как просили
+		}(id, calculationData)
+	}
+
+	// Меняем статус синтеза (асинхронный расчёт запущен)
 	err = h.Repository.CompleteOrRejectSynthesis(uint(id), moderatorID, input.NewStatus)
 	if err != nil {
 		h.errorHandler(ctx, http.StatusBadRequest, err)
@@ -788,7 +835,7 @@ func (h *Handler) CompleteOrRejectSynthesisAPI(ctx *gin.Context) {
 
 	message := "Заявка отклонена"
 	if input.NewStatus {
-		message = "Заявка завершена"
+		message = "Заявка завершена (расчёт запущен)"
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
@@ -1190,4 +1237,64 @@ func (h *Handler) GetUserID(ctx *gin.Context) (uint, error) {
 	}
 
 	return userID.(uint), nil
+}
+
+// UpdateSynthesisResultAPI godoc
+// @Summary Update synthesis result from async service
+// @Description Receive calculated result from async service
+// @Tags Syntheses
+// @Accept json
+// @Produce json
+// @Param id path int true "Synthesis ID"
+// @Param input body UpdateSynthesisResultRequest true "Result data"
+// @Success 200 {object} SuccessResponse
+// @Failure 400 {object} object{status=string,description=string} "Bad Request"
+// @Failure 403 {object} object{status=string,description=string} "Forbidden"
+// @Router /API/synthesis/{id}/update-result [put]
+func (h *Handler) UpdateSynthesisResultAPI(ctx *gin.Context) {
+	idStr := ctx.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		h.errorHandler(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	var input struct {
+		Token   string `json:"token" binding:"required"`
+		Results []struct {
+			ReactionID uint    `json:"reaction_id"`
+			VolumeRM   float32 `json:"volume_rm"`
+		} `json:"results" binding:"required"`
+	}
+
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		h.errorHandler(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	// Простая проверка токена
+	if input.Token != "secret123token" {
+		ctx.JSON(http.StatusForbidden, gin.H{"error": "invalid token"})
+		return
+	}
+
+	logrus.Infof("Received results for synthesis %d: %+v", id, input.Results)
+
+	// Обновляем результаты в БД
+	for _, result := range input.Results {
+		logrus.Infof("Updating reaction %d with volume_rm = %f",
+			result.ReactionID, result.VolumeRM)
+
+		err = h.Repository.UpdateReactionVolumeRM(uint(id), result.ReactionID, result.VolumeRM)
+		if err != nil {
+			logrus.Errorf("Failed to update reaction %d: %v", result.ReactionID, err)
+		} else {
+			logrus.Infof("Successfully updated reaction %d", result.ReactionID)
+		}
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Results updated successfully",
+	})
 }

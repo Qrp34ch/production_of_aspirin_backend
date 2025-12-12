@@ -571,6 +571,61 @@ func (r *Repository) FormSynthesis(synthesisID uint) error {
 	return nil
 }
 
+//	func (r *Repository) CompleteOrRejectSynthesis(synthesisID uint, moderatorID uint, newStatus bool) error {
+//		var synthesis ds.Synthesis
+//		err := r.db.Model(&ds.Synthesis{}).Where("id = ? AND status = ?", synthesisID, "сформирован").First(&synthesis).Error
+//
+//		if err != nil {
+//			return fmt.Errorf("сформированный синтез с ID %d не найден", synthesisID)
+//		}
+//		var updStatus string
+//		if newStatus {
+//			updStatus = "завершён"
+//		} else {
+//			updStatus = "отклонён"
+//		}
+//		updates := map[string]interface{}{
+//			"status":       updStatus,
+//			"date_update":  time.Now(),
+//			"date_finish":  time.Now(),
+//			"moderator_id": moderatorID,
+//		}
+//
+//		if newStatus {
+//			var synthesisReaction []ds.SynthesisReaction
+//			err = r.db.Where("synthesis_id = ?", synthesisID).Find(&synthesisReaction).Error
+//			if err != nil {
+//				return fmt.Errorf("ошибка получения данных о синтезе: %w", err)
+//			}
+//
+//			for _, reactionFromSynthesis := range synthesisReaction {
+//				var reaction ds.Reaction
+//				var res float32
+//				err = r.db.Where("id = ?", reactionFromSynthesis.ReactionID).Find(&reaction).Error
+//				if err != nil {
+//					return fmt.Errorf("ошибка получения данных о синтезе: %w", err)
+//				}
+//				// Vk = (c*Vs*ps*Mk)/(pk*Ms)
+//				purity := synthesis.Purity
+//				volumeSM := reactionFromSynthesis.VolumeSM
+//				molarMassSM := float32(reaction.MolarMassSM)
+//				molarMassRM := float32(reaction.MolarMassRM)
+//				count := float32(reactionFromSynthesis.Count)
+//				densitySM := reaction.DensitySM
+//				densityRM := reaction.DensityRM
+//				res = ((purity * volumeSM * densitySM * molarMassRM) / (densityRM * molarMassSM)) * count
+//
+//				r.db.Model(&ds.SynthesisReaction{}).Where("id = ?", reactionFromSynthesis.ID).Update("volume_rm", res)
+//			}
+//		}
+//
+//		err = r.db.Model(&ds.Synthesis{}).Where("id = ?", synthesisID).Updates(updates).Error
+//		if err != nil {
+//			return fmt.Errorf("ошибка при обновлении синтеза: %w", err)
+//		}
+//
+//		return nil
+//	}
 func (r *Repository) CompleteOrRejectSynthesis(synthesisID uint, moderatorID uint, newStatus bool) error {
 	var synthesis ds.Synthesis
 	err := r.db.Model(&ds.Synthesis{}).Where("id = ? AND status = ?", synthesisID, "сформирован").First(&synthesis).Error
@@ -578,12 +633,14 @@ func (r *Repository) CompleteOrRejectSynthesis(synthesisID uint, moderatorID uin
 	if err != nil {
 		return fmt.Errorf("сформированный синтез с ID %d не найден", synthesisID)
 	}
+
 	var updStatus string
 	if newStatus {
 		updStatus = "завершён"
 	} else {
 		updStatus = "отклонён"
 	}
+
 	updates := map[string]interface{}{
 		"status":       updStatus,
 		"date_update":  time.Now(),
@@ -591,33 +648,8 @@ func (r *Repository) CompleteOrRejectSynthesis(synthesisID uint, moderatorID uin
 		"moderator_id": moderatorID,
 	}
 
-	if newStatus {
-		var synthesisReaction []ds.SynthesisReaction
-		err = r.db.Where("synthesis_id = ?", synthesisID).Find(&synthesisReaction).Error
-		if err != nil {
-			return fmt.Errorf("ошибка получения данных о синтезе: %w", err)
-		}
-
-		for _, reactionFromSynthesis := range synthesisReaction {
-			var reaction ds.Reaction
-			var res float32
-			err = r.db.Where("id = ?", reactionFromSynthesis.ReactionID).Find(&reaction).Error
-			if err != nil {
-				return fmt.Errorf("ошибка получения данных о синтезе: %w", err)
-			}
-			// Vk = (c*Vs*ps*Mk)/(pk*Ms)
-			purity := synthesis.Purity
-			volumeSM := reactionFromSynthesis.VolumeSM
-			molarMassSM := float32(reaction.MolarMassSM)
-			molarMassRM := float32(reaction.MolarMassRM)
-			count := float32(reactionFromSynthesis.Count)
-			densitySM := reaction.DensitySM
-			densityRM := reaction.DensityRM
-			res = ((purity * volumeSM * densitySM * molarMassRM) / (densityRM * molarMassSM)) * count
-
-			r.db.Model(&ds.SynthesisReaction{}).Where("id = ?", reactionFromSynthesis.ID).Update("volume_rm", res)
-		}
-	}
+	// Убираем синхронный расчёт
+	// if newStatus { ... }
 
 	err = r.db.Model(&ds.Synthesis{}).Where("id = ?", synthesisID).Updates(updates).Error
 	if err != nil {
@@ -815,4 +847,67 @@ func (r *Repository) GetUserID() uint {
 
 func (r *Repository) GetModeratorID() uint {
 	return 2
+}
+
+func (r *Repository) UpdateReactionVolumeRM(synthesisID, reactionID uint, volumeRM float32) error {
+	logrus.Infof("DB Update: synthesis_id=%d, reaction_id=%d, volume_rm=%f",
+		synthesisID, reactionID, volumeRM)
+
+	result := r.db.Model(&ds.SynthesisReaction{}).
+		Where("synthesis_id = ? AND reaction_id = ?", synthesisID, reactionID).
+		Update("volume_rm", volumeRM)
+
+	logrus.Infof("Rows affected: %d", result.RowsAffected)
+	logrus.Infof("DB Error: %v", result.Error)
+
+	return result.Error
+}
+
+//	func (r *Repository) GetSynthesisDataForCalculation(synthesisID uint) ([]ds.SynthesisReaction, error) {
+//		var synthesisReactions []ds.SynthesisReaction
+//		err := r.db.Where("synthesis_id = ?", synthesisID).
+//			Preload("Reaction").
+//			Find(&synthesisReactions).Error
+//		if err != nil {
+//			return nil, fmt.Errorf("ошибка получения данных синтеза: %w", err)
+//		}
+//		return synthesisReactions, nil
+//	}
+//
+// В repository/repository.go
+func (r *Repository) GetSynthesisDataForCalculation(synthesisID uint) ([]SynthesisReactionWithDetails, error) {
+	var synthesisReactions []SynthesisReactionWithDetails
+
+	err := r.db.Table("synthesis_reactions sr").
+		Select(`
+            sr.reaction_id,
+            sr.volume_sm,
+            sr.count,
+            s.purity,
+            r.density_sm,
+            r.molar_mass_sm,
+            r.density_rm,
+            r.molar_mass_rm
+        `).
+		Joins("JOIN syntheses s ON s.id = sr.synthesis_id").
+		Joins("JOIN reactions r ON r.id = sr.reaction_id").
+		Where("sr.synthesis_id = ?", synthesisID).
+		Scan(&synthesisReactions).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("ошибка получения данных синтеза: %w", err)
+	}
+
+	return synthesisReactions, nil
+}
+
+type SynthesisReactionWithDetails struct {
+	ReactionID  uint    `json:"reaction_id"`
+	VolumeSM    float32 `json:"volume_sm"`
+	Count       uint    `json:"count"`
+	Purity      float32 `json:"purity"`
+	DensitySM   float32 `json:"density_sm"`
+	MolarMassSM int     `json:"molar_mass_sm"`
+	DensityRM   float32 `json:"density_rm"`
+	MolarMassRM int     `json:"molar_mass_rm"`
 }

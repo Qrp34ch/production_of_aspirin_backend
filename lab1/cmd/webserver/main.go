@@ -162,5 +162,38 @@ func main() {
 
 	})
 
+	go func() {
+		httpRouter := gin.Default()
+
+		// Только нужные для Django endpoint-ы
+		httpRouter.PUT("/API/synthesis/:id/update-result", hand.UpdateSynthesisResultAPI)
+
+		// Health check для проверки
+		httpRouter.GET("/health", func(c *gin.Context) {
+			c.JSON(200, gin.H{"status": "ok"})
+		})
+
+		fmt.Println("HTTP server for Django on :8081")
+
+		// Обрабатываем CORS для Django
+		httpRouter.Use(func(c *gin.Context) {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+			c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+			if c.Request.Method == "OPTIONS" {
+				c.AbortWithStatus(204)
+				return
+			}
+
+			c.Next()
+		})
+
+		// Запускаем на порту 8081
+		if err := httpRouter.Run(":8085"); err != nil {
+			logrus.Errorf("HTTP server failed: %v", err)
+		}
+	}()
+
 	application.RunApp()
 }

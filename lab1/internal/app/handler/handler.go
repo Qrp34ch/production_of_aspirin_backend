@@ -56,6 +56,8 @@ func (h *Handler) RegisterHandler(router *gin.Engine) {
 	authM.PUT("/API/synthesis/:id/moderate", h.CompleteOrRejectSynthesisAPI)
 	authU.DELETE("/API/synthesis", h.DeleteSynthesisAPI)
 
+	authM.PUT("/API/synthesis/:id/update-result", h.UpdateSynthesisResultAPI)
+
 	//домен м-м
 	authU.DELETE("/API/reaction-synthesis", h.RemoveReactionFromSynthesisAPI)
 	authU.PUT("/API/reaction-synthesis", h.UpdateReactionInSynthesisAPI)
